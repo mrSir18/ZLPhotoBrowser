@@ -29,11 +29,11 @@ import Photos
 import AVFoundation
 
 public class ZLEditVideoModel: NSObject {
-    let start: TimeInterval
-    let end: TimeInterval
-    let preDuration: TimeInterval
-    let url: URL
-    let coverImage: UIImage?
+    public let start: TimeInterval
+    public let end: TimeInterval
+    public let preDuration: TimeInterval
+    public let url: URL
+    public let coverImage: UIImage?
     
     init(start: TimeInterval, end: TimeInterval, preDuration: TimeInterval, url: URL, coverImage: UIImage?) {
         self.start = start
@@ -386,9 +386,32 @@ public class ZLEditVideoViewController: UIViewController {
     }
     
     @objc private func cancelBtnClick() {
-        dismiss(animated: animateDismiss) {
+        dismissEditController(animated: animateDismiss) {
             self.cancelEditBlock?()
         }
+    }
+
+    private func dismissEditController(animated: Bool, completion: (() -> Void)? = nil) {
+        guard presentingViewController == nil, parent != nil else {
+            dismiss(animated: animated, completion: completion)
+            return
+        }
+
+        let remove = {
+            self.willMove(toParent: nil)
+            self.view.removeFromSuperview()
+            self.removeFromParent()
+            completion?()
+        }
+
+        guard animated else {
+            remove()
+            return
+        }
+
+        UIView.animate(withDuration: 0.18, animations: {
+            self.view.alpha = 0
+        }, completion: { _ in remove() })
     }
     
     @objc private func doneBtnClick() {
@@ -397,9 +420,9 @@ public class ZLEditVideoViewController: UIViewController {
             if let nav = presentingViewController as? ZLImageNavController,
                nav.topViewController is ZLPhotoPreviewController {
                 editFinishBlock?(editModel)
-                dismiss(animated: animateDismiss)
+                dismissEditController(animated: animateDismiss)
             } else {
-                dismiss(animated: animateDismiss) {
+                dismissEditController(animated: animateDismiss) {
                     self.editFinishBlock?(editModel)
                 }
             }

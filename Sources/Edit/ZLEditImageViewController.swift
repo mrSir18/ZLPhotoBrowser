@@ -986,9 +986,32 @@ open class ZLEditImageViewController: UIViewController {
     }
     
     @objc private func cancelBtnClick() {
-        dismiss(animated: animate) {
+        dismissEditController(animated: animate) {
             self.cancelEditBlock?()
         }
+    }
+
+    private func dismissEditController(animated: Bool, completion: (() -> Void)? = nil) {
+        guard presentingViewController == nil, parent != nil else {
+            dismiss(animated: animated, completion: completion)
+            return
+        }
+
+        let remove = {
+            self.willMove(toParent: nil)
+            self.view.removeFromSuperview()
+            self.removeFromParent()
+            completion?()
+        }
+
+        guard animated else {
+            remove()
+            return
+        }
+
+        UIView.animate(withDuration: 0.18, animations: {
+            self.view.alpha = 0
+        }, completion: { _ in remove() })
     }
     
     private func drawBtnClick() {
@@ -1193,9 +1216,9 @@ open class ZLEditImageViewController: UIViewController {
             if let nav = presentingViewController as? ZLImageNavController,
                nav.topViewController is ZLPhotoPreviewController {
                 editFinishBlock?(resImage, editModel)
-                dismiss(animated: animate)
+                dismissEditController(animated: animate)
             } else {
-                dismiss(animated: animate) {
+                dismissEditController(animated: animate) {
                     self.editFinishBlock?(resImage, editModel)
                 }
             }
