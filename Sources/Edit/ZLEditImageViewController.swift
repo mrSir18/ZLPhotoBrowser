@@ -992,7 +992,7 @@ open class ZLEditImageViewController: UIViewController {
     }
 
     private func dismissEditController(animated: Bool, completion: (() -> Void)? = nil) {
-        guard presentingViewController == nil, parent != nil else {
+        guard parent != nil else {
             dismiss(animated: animated, completion: completion)
             return
         }
