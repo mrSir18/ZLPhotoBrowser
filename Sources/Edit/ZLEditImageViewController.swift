@@ -424,6 +424,20 @@ open class ZLEditImageViewController: UIViewController {
     @objc public var editFinishBlock: ((UIImage, ZLEditImageModel?) -> Void)?
     
     @objc public var cancelEditBlock: (() -> Void)?
+
+    public var bottomToolBottomSpacing: CGFloat? {
+        didSet {
+            shouldLayout = true
+            view.setNeedsLayout()
+        }
+    }
+
+    @objc public var doneButtonTitle: String? {
+        didSet {
+            doneBtn.setTitle(doneButtonTitle ?? localLanguageTextValue(.editFinish), for: .normal)
+            view.setNeedsLayout()
+        }
+    }
     
     override public var prefersStatusBarHidden: Bool { true }
     
@@ -666,11 +680,19 @@ open class ZLEditImageViewController: UIViewController {
             height: 25
         )
         
-        let toolY: CGFloat = 95
-        
         let doneBtnH = ZLLayout.bottomToolBtnH
-        let doneBtnW = localLanguageTextValue(.editFinish).zl.boundingRect(font: ZLLayout.bottomToolTitleFont, limitSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: doneBtnH)).width + 20
-        doneBtn.frame = CGRect(x: windowBounds.width - 20 - doneBtnW, y: toolY - 2, width: doneBtnW, height: doneBtnH)
+        let doneTitle = doneBtn.currentTitle ?? localLanguageTextValue(.editFinish)
+        let doneBtnW = doneTitle.zl.boundingRect(font: ZLLayout.bottomToolTitleFont, limitSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: doneBtnH)).width + 20
+        let doneBtnY: CGFloat
+        let toolY: CGFloat
+        if let bottomToolBottomSpacing {
+            doneBtnY = bottomShadowView.bounds.height - bottomToolBottomSpacing - doneBtnH
+            toolY = doneBtnY + 2
+        } else {
+            toolY = 95
+            doneBtnY = toolY - 2
+        }
+        doneBtn.frame = CGRect(x: windowBounds.width - 20 - doneBtnW, y: doneBtnY, width: doneBtnW, height: doneBtnH)
         
         let editToolWidth = windowBounds.width - 20 - 20 - doneBtnW - 20
         editToolCollectionView.frame = CGRect(x: 20, y: toolY, width: editToolWidth, height: 30)

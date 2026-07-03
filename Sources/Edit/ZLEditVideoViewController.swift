@@ -196,6 +196,23 @@ public class ZLEditVideoViewController: UIViewController {
     public var editFinishBlock: ((ZLEditVideoModel?) -> Void)?
     
     public var cancelEditBlock: (() -> Void)?
+
+    public var sendButtonTapBlock: (() -> Void)?
+
+    public var fillsPlayerView = false {
+        didSet {
+            playerLayer.videoGravity = fillsPlayerView ? .resizeAspectFill : .resizeAspect
+            shouldLayout = true
+            view.setNeedsLayout()
+        }
+    }
+
+    public var doneButtonTitle: String? {
+        didSet {
+            doneBtn.setTitle(doneButtonTitle ?? localLanguageTextValue(.editFinish), for: .normal)
+            view.setNeedsLayout()
+        }
+    }
     
     override public var prefersStatusBarHidden: Bool { true }
     
@@ -280,7 +297,11 @@ public class ZLEditVideoViewController: UIViewController {
         let playerLayerY = insets.top + 20
         let diffBottom = btnH + Layout.frameImageSize.height + bottomBtnAndColSpacing + insets.bottom + 30
         
-        playerLayer.frame = CGRect(x: 15, y: insets.top + 20, width: view.bounds.width - 30, height: view.bounds.height - playerLayerY - diffBottom)
+        if fillsPlayerView {
+            playerLayer.frame = view.bounds
+        } else {
+            playerLayer.frame = CGRect(x: 15, y: insets.top + 20, width: view.bounds.width - 30, height: view.bounds.height - playerLayerY - diffBottom)
+        }
         
         let cancelBtnW = localLanguageTextValue(.cancel).zl.boundingRect(font: ZLLayout.bottomToolTitleFont, limitSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: btnH)).width
         cancelBtn.frame = CGRect(x: 20, y: view.bounds.height - insets.bottom - btnH, width: cancelBtnW, height: btnH)
@@ -393,6 +414,11 @@ public class ZLEditVideoViewController: UIViewController {
 
     private func dismissEditController(animated: Bool, completion: (() -> Void)? = nil) {
         guard parent != nil else {
+            guard presentingViewController != nil else {
+                completion?()
+                return
+            }
+
             dismiss(animated: animated, completion: completion)
             return
         }
@@ -441,6 +467,7 @@ public class ZLEditVideoViewController: UIViewController {
                 return
             }
             
+            sendButtonTapBlock?()
             callback(editModel: nil)
             return
         }
@@ -448,14 +475,15 @@ public class ZLEditVideoViewController: UIViewController {
         if let editModel,
            abs(editModel.start - getStartTime().seconds) <= 0.01,
            abs(editModel.end - getEndTime().seconds) <= 0.01 {
+            sendButtonTapBlock?()
             callback(editModel: editModel)
             return
         }
         
+        sendButtonTapBlock?()
         let hud = ZLProgressHUD.show(toast: .processing, in: view.window)
-        ZLVideoManager.exportEditVideo(for: avAsset, range: getTimeRange()) { [weak self] url, error in
+        ZLVideoManager.exportEditVideo(for: avAsset, range: getTimeRange()) { [self] url, error in
             hud.hide()
-            guard let `self` = self else { return }
             
             if let error {
                 showAlertView(error.localizedDescription, self)
