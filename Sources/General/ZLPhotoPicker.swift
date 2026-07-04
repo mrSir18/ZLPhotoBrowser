@@ -198,7 +198,8 @@ public class ZLPhotoPicker: NSObject {
         isOriginal: Bool,
         showBottomViewAndSelectBtn: Bool = true,
         doneButtonTitle: String? = nil,
-        didFinishSelection: (() -> Void)? = nil,
+        dismissBeforeFinishSelection: Bool = true,
+        didFinishSelection: (([PHAsset], Bool) -> Void)? = nil,
         didSelectAsset: ((PHAsset) -> Void)? = nil,
         didDeselectAsset: ((PHAsset) -> Void)? = nil
     ) {
@@ -243,15 +244,23 @@ public class ZLPhotoPicker: NSObject {
         vc.doneButtonTitle = doneButtonTitle
         let nav = getImageNav(rootViewController: vc)
         let selectImageBlock = nav.selectImageBlock
-        nav.selectImageBlock = { [weak nav] in
+        nav.selectImageBlock = { [weak self, weak nav] in
             restoreAssetSelectionCallbacks()
             guard let didFinishSelection else {
                 selectImageBlock?()
                 return
             }
-            nav?.dismiss(animated: true) {
-                didFinishSelection()
+            let previousSelectImageBlock = self?.selectImageBlock
+            self?.selectImageBlock = { [weak self] results, isOriginal in
+                self?.selectImageBlock = previousSelectImageBlock
+                didFinishSelection(results.map(\.asset), isOriginal)
             }
+            self?.requestSelectPhoto(
+                models: nav?.arrSelectedModels ?? [],
+                isSelectOriginal: nav?.isSelectedOriginal ?? false,
+                viewController: nav,
+                dismissAnimated: dismissBeforeFinishSelection
+            )
         }
         let cancelBlock = nav.cancelBlock
         nav.cancelBlock = {
@@ -295,7 +304,8 @@ public class ZLPhotoPicker: NSObject {
     private func requestSelectPhoto(
         models: [ZLPhotoModel],
         isSelectOriginal: Bool,
-        viewController: UIViewController? = nil
+        viewController: UIViewController? = nil,
+        dismissAnimated: Bool = true
     ) {
         arrSelectedModels.removeAll()
         arrSelectedModels.append(contentsOf: models)
@@ -303,7 +313,7 @@ public class ZLPhotoPicker: NSObject {
         guard !arrSelectedModels.isEmpty else {
             selectImageBlock?([], isSelectOriginal)
             previewSheet?.hide()
-            viewController?.dismiss(animated: true, completion: nil)
+            viewController?.dismiss(animated: dismissAnimated, completion: nil)
             return
         }
         
@@ -343,7 +353,7 @@ public class ZLPhotoPicker: NSObject {
             }
             
             if let viewController {
-                viewController.dismiss(animated: true) {
+                viewController.dismiss(animated: dismissAnimated) {
                     call()
                 }
             } else {
