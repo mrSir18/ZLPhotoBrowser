@@ -63,6 +63,8 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
     var cancelTransition: (() -> Void)?
     
     var finishTransition: (() -> Void)?
+
+    var dismissWhenRoot = false
     
     deinit {
         zl_debugPrint("ZLPhotoPreviewPopInteractiveTransition deinit")
@@ -157,7 +159,11 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
         startPanPoint = pan.location(in: viewController?.view)
         interactive = true
         startTransition?()
-        viewController?.navigationController?.popViewController(animated: true)
+        if dismissWhenRoot {
+            viewController?.navigationController?.dismiss(animated: true)
+        } else {
+            viewController?.navigationController?.popViewController(animated: true)
+        }
     }
     
     func panResult(_ pan: UIPanGestureRecognizer) -> (frame: CGRect, scale: CGFloat) {
@@ -194,13 +200,17 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
             return
         }
         
-        guard let fromVC = transitionContext.viewController(forKey: .from) as? ZLPhotoPreviewController,
-              let toVC = transitionContext.viewController(forKey: .to) as? ZLThumbnailViewController else {
+        guard let fromVC = sourcePreviewController(
+            from: transitionContext.viewController(forKey: .from)
+        ),
+              let toVC = transitionContext.viewController(forKey: .to) else {
             return
         }
         
         let containerView = transitionContext.containerView
-        containerView.addSubview(toVC.view)
+        if !toVC.view.zl.isInWindowHierarchy {
+            containerView.addSubview(toVC.view)
+        }
         
         guard let cell = fromVC.collectionView.cellForItem(at: IndexPath(row: fromVC.currentIndex, section: 0)) as? ZLPreviewBaseCell else {
             return
@@ -241,7 +251,7 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
         }
         
         containerView.addSubview(imageView!)
-        containerView.addSubview(fromVC.view)
+        containerView.addSubview(transitionContext.view(forKey: .from) ?? fromVC.view)
         
         imageViewOriginalFrame = imageView!.frame
         resetViewStatus(isStart: true)
@@ -256,43 +266,45 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
         guard let transitionContext = transitionContext else {
             return
         }
-        guard let fromVC = transitionContext.viewController(forKey: .from) as? ZLPhotoPreviewController,
-              let toVC = transitionContext.viewController(forKey: .to) as? ZLThumbnailViewController else {
+        guard let fromVC = sourcePreviewController(
+            from: transitionContext.viewController(forKey: .from)
+        ) else {
             return
         }
         
-        let fromVCModel = fromVC.arrDataSources[fromVC.currentIndex]
-        let toVCVisiableIndexPaths = toVC.collectionView.indexPathsForVisibleItems
-        
-        var diff = 0
-        if !ZLPhotoUIConfiguration.default().sortAscending {
-            if toVC.showCameraCell {
-                diff = -1
-            }
-            if #available(iOS 14.0, *), toVC.showAddPhotoCell {
-                diff -= 1
-            }
-        }
-        var toIndex: Int?
-        for indexPath in toVCVisiableIndexPaths {
-            let idx = indexPath.row + diff
-            if idx >= toVC.arrDataSources.count || idx < 0 {
-                continue
-            }
-            let m = toVC.arrDataSources[idx]
-            if m == fromVCModel {
-                toIndex = indexPath.row
-                break
-            }
-        }
-        
         var toFrame: CGRect?
-        
-        if let toIndex, let toCell = toVC.collectionView.cellForItem(at: IndexPath(row: toIndex, section: 0)) {
-            toFrame = toVC.collectionView.convert(toCell.frame, to: transitionContext.containerView)
+        if let toVC = transitionContext.viewController(forKey: .to) as? ZLThumbnailViewController {
+            let fromVCModel = fromVC.arrDataSources[fromVC.currentIndex]
+            let toVCVisiableIndexPaths = toVC.collectionView.indexPathsForVisibleItems
+
+            var diff = 0
+            if !ZLPhotoUIConfiguration.default().sortAscending {
+                if toVC.showCameraCell {
+                    diff = -1
+                }
+                if #available(iOS 14.0, *), toVC.showAddPhotoCell {
+                    diff -= 1
+                }
+            }
+            var toIndex: Int?
+            for indexPath in toVCVisiableIndexPaths {
+                let idx = indexPath.row + diff
+                if idx >= toVC.arrDataSources.count || idx < 0 {
+                    continue
+                }
+                let m = toVC.arrDataSources[idx]
+                if m == fromVCModel {
+                    toIndex = indexPath.row
+                    break
+                }
+            }
+
+            if let toIndex, let toCell = toVC.collectionView.cellForItem(at: IndexPath(row: toIndex, section: 0)) {
+                toFrame = toVC.collectionView.convert(toCell.frame, to: transitionContext.containerView)
+            }
+
+            toVC.endPopTransition()
         }
-        
-        toVC.endPopTransition()
         
         UIView.animate(withDuration: 0.3, animations: {
             if let toFrame, self.playerLayer == nil {
@@ -359,12 +371,22 @@ class ZLPhotoPreviewPopInteractiveTransition: UIPercentDrivenInteractiveTransiti
         (currentCell as? ZLNetVideoPreviewCell)?.singleTapGes.isEnabled = !isStart
         
         guard let transitionContext = transitionContext,
-              let fromVC = transitionContext.viewController(forKey: .from) as? ZLPhotoPreviewController else {
+              let fromVC = sourcePreviewController(
+                  from: transitionContext.viewController(forKey: .from)
+              ) else {
             return
         }
         
         fromVC.view.backgroundColor = isStart ? .clear : ZLPhotoUIConfiguration.default().previewVCBgColor
         fromVC.collectionView.isHidden = isStart
+    }
+
+    func sourcePreviewController(from viewController: UIViewController?) -> ZLPhotoPreviewController? {
+        if let viewController = viewController as? ZLPhotoPreviewController {
+            return viewController
+        }
+
+        return (viewController as? UINavigationController)?.topViewController as? ZLPhotoPreviewController
     }
 }
 
