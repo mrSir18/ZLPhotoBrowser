@@ -189,6 +189,82 @@ public class ZLPhotoPicker: NSObject {
         
         sender.showDetailViewController(nav, sender: nil)
     }
+
+    /// 传入相册 assets，并预览
+    @objc public func previewAlbumAssets(
+        sender: UIViewController,
+        assets: [PHAsset],
+        index: Int,
+        isOriginal: Bool,
+        showBottomViewAndSelectBtn: Bool = true,
+        doneButtonTitle: String? = nil,
+        didFinishSelection: (() -> Void)? = nil,
+        didSelectAsset: ((PHAsset) -> Void)? = nil,
+        didDeselectAsset: ((PHAsset) -> Void)? = nil
+    ) {
+        assert(!assets.isEmpty, "Assets cannot be empty")
+
+        let selectedAssetIDs = Set(arrSelectedModels.map { $0.asset.localIdentifier })
+        let models = assets.zl.removeDuplicate().map { asset -> ZLPhotoModel in
+            let model = ZLPhotoModel(asset: asset)
+            model.isSelected = selectedAssetIDs.contains(asset.localIdentifier)
+            return model
+        }
+
+        guard !models.isEmpty else {
+            return
+        }
+
+        let previewIndex = models.indices.contains(index) ? index : 0
+        self.sender = sender
+        isSelectOriginal = isOriginal
+
+        let config = ZLPhotoConfiguration.default()
+        let previousDidSelectAsset = config.didSelectAsset
+        let previousDidDeselectAsset = config.didDeselectAsset
+        let shouldSyncAssetSelection = didSelectAsset != nil || didDeselectAsset != nil
+        if shouldSyncAssetSelection {
+            config.didSelectAsset = { asset in
+                previousDidSelectAsset?(asset)
+                didSelectAsset?(asset)
+            }
+            config.didDeselectAsset = { asset in
+                previousDidDeselectAsset?(asset)
+                didDeselectAsset?(asset)
+            }
+        }
+        let restoreAssetSelectionCallbacks = {
+            guard shouldSyncAssetSelection else { return }
+            config.didSelectAsset = previousDidSelectAsset
+            config.didDeselectAsset = previousDidDeselectAsset
+        }
+
+        let vc = ZLPhotoPreviewController(photos: models, index: previewIndex, showBottomViewAndSelectBtn: showBottomViewAndSelectBtn)
+        vc.doneButtonTitle = doneButtonTitle
+        let nav = getImageNav(rootViewController: vc)
+        let selectImageBlock = nav.selectImageBlock
+        nav.selectImageBlock = { [weak nav] in
+            restoreAssetSelectionCallbacks()
+            guard let didFinishSelection else {
+                selectImageBlock?()
+                return
+            }
+            nav?.dismiss(animated: true) {
+                didFinishSelection()
+            }
+        }
+        let cancelBlock = nav.cancelBlock
+        nav.cancelBlock = {
+            restoreAssetSelectionCallbacks()
+            cancelBlock?()
+        }
+        vc.backBlock = {
+            restoreAssetSelectionCallbacks()
+            self.cancel()
+        }
+
+        sender.showDetailViewController(nav, sender: nil)
+    }
     
     private func getImageNav(rootViewController: UIViewController) -> ZLImageNavController {
         let nav = ZLImageNavController(rootViewController: rootViewController)

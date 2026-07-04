@@ -182,6 +182,8 @@ class ZLPhotoPreviewController: UIViewController {
     
     var preloadBlock: ((_ loadAll: Bool) -> [ZLPhotoModel])?
     
+    var doneButtonTitle: String?
+    
     /// 界面消失时，通知上个界面刷新
     var backBlock: (() -> Void)?
     
@@ -544,7 +546,7 @@ class ZLPhotoPreviewController: UIViewController {
             return
         }
         let selCount = nav.arrSelectedModels.count
-        var doneTitle = localLanguageTextValue(.done)
+        var doneTitle = doneButtonTitle ?? localLanguageTextValue(.done)
         if ZLPhotoConfiguration.default().showSelectCountOnDoneBtn, selCount > 0 {
             doneTitle += "(" + String(selCount) + ")"
         }
