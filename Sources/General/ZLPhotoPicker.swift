@@ -199,14 +199,16 @@ public class ZLPhotoPicker: NSObject {
         showBottomViewAndSelectBtn: Bool = true,
         doneButtonTitle: String? = nil,
         dismissBeforeFinishSelection: Bool = true,
+        saveNewImageAfterEdit: Bool = ZLPhotoConfiguration.default().saveNewImageAfterEdit,
         didFinishSelection: (([PHAsset], Bool) -> Void)? = nil,
+        didFinishSelectionResults: (([ZLResultModel], Bool) -> Void)? = nil,
         didSelectAsset: ((PHAsset) -> Void)? = nil,
         didDeselectAsset: ((PHAsset) -> Void)? = nil
     ) {
         assert(!assets.isEmpty, "Assets cannot be empty")
 
         let selectedAssetIDs = Set(arrSelectedModels.map { $0.asset.localIdentifier })
-        let models = assets.zl.removeDuplicate().map { asset -> ZLPhotoModel in
+        var models = assets.zl.removeDuplicate().map { asset -> ZLPhotoModel in
             let model = ZLPhotoModel(asset: asset)
             model.isSelected = selectedAssetIDs.contains(asset.localIdentifier)
             return model
@@ -215,12 +217,16 @@ public class ZLPhotoPicker: NSObject {
         guard !models.isEmpty else {
             return
         }
+        
+        markSelected(source: &models, selected: &arrSelectedModels)
 
         let previewIndex = models.indices.contains(index) ? index : 0
         self.sender = sender
         isSelectOriginal = isOriginal
 
         let config = ZLPhotoConfiguration.default()
+        let previousSaveNewImageAfterEdit = config.saveNewImageAfterEdit
+        config.saveNewImageAfterEdit = saveNewImageAfterEdit
         let previousDidSelectAsset = config.didSelectAsset
         let previousDidDeselectAsset = config.didDeselectAsset
         let shouldSyncAssetSelection = didSelectAsset != nil || didDeselectAsset != nil
@@ -239,6 +245,9 @@ public class ZLPhotoPicker: NSObject {
             config.didSelectAsset = previousDidSelectAsset
             config.didDeselectAsset = previousDidDeselectAsset
         }
+        let restoreSaveNewImageAfterEdit = {
+            config.saveNewImageAfterEdit = previousSaveNewImageAfterEdit
+        }
 
         let vc = ZLPhotoPreviewController(photos: models, index: previewIndex, showBottomViewAndSelectBtn: showBottomViewAndSelectBtn)
         vc.doneButtonTitle = doneButtonTitle
@@ -246,14 +255,17 @@ public class ZLPhotoPicker: NSObject {
         let selectImageBlock = nav.selectImageBlock
         nav.selectImageBlock = { [weak self, weak nav] in
             restoreAssetSelectionCallbacks()
-            guard let didFinishSelection else {
+            guard didFinishSelection != nil || didFinishSelectionResults != nil else {
+                restoreSaveNewImageAfterEdit()
                 selectImageBlock?()
                 return
             }
             let previousSelectImageBlock = self?.selectImageBlock
             self?.selectImageBlock = { [weak self] results, isOriginal in
                 self?.selectImageBlock = previousSelectImageBlock
-                didFinishSelection(results.map(\.asset), isOriginal)
+                restoreSaveNewImageAfterEdit()
+                didFinishSelectionResults?(results, isOriginal)
+                didFinishSelection?(results.map(\.asset), isOriginal)
             }
             self?.requestSelectPhoto(
                 models: nav?.arrSelectedModels ?? [],
@@ -265,10 +277,12 @@ public class ZLPhotoPicker: NSObject {
         let cancelBlock = nav.cancelBlock
         nav.cancelBlock = {
             restoreAssetSelectionCallbacks()
+            restoreSaveNewImageAfterEdit()
             cancelBlock?()
         }
         vc.backBlock = {
             restoreAssetSelectionCallbacks()
+            restoreSaveNewImageAfterEdit()
             self.cancel()
         }
 
