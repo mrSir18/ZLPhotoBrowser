@@ -224,6 +224,8 @@ class ZLClipImageViewController: UIViewController {
     
     var cancelClipBlock: (() -> Void)?
     
+    weak var editImageViewControllerForDismiss: ZLEditImageViewController?
+
     override var prefersStatusBarHidden: Bool { true }
     
     override var prefersHomeIndicatorAutoHidden: Bool { true }
@@ -285,7 +287,7 @@ class ZLClipImageViewController: UIViewController {
         super.viewDidAppear(animated)
         
         viewDidAppearCount += 1
-        if presentingViewController is ZLEditImageViewController {
+        if editImageViewControllerForDismiss != nil || presentingViewController is ZLEditImageViewController {
             transitioningDelegate = self
         }
         

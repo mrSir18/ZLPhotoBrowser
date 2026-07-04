@@ -32,7 +32,12 @@ class ZLClipImageDismissAnimatedTransition: NSObject, UIViewControllerAnimatedTr
     }
     
     func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
-        guard let fromVC = transitionContext.viewController(forKey: .from) as? ZLClipImageViewController, let toVC = transitionContext.viewController(forKey: .to) as? ZLEditImageViewController else {
+        guard let fromVC = transitionContext.viewController(forKey: .from) as? ZLClipImageViewController else {
+            transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+            return
+        }
+
+        guard let toVC = fromVC.editImageViewControllerForDismiss ?? Self.findEditImageViewController(in: transitionContext.viewController(forKey: .to)) else {
             transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
             return
         }
@@ -40,7 +45,11 @@ class ZLClipImageDismissAnimatedTransition: NSObject, UIViewControllerAnimatedTr
         // 适配iPad自定义窗口大小，这里需要把fromVC.view隐藏，不然可能会漏出来一部分
         fromVC.view.isHidden = true
         let containerView = transitionContext.containerView
-        containerView.addSubview(toVC.view)
+        if let toView = transitionContext.view(forKey: .to), toView.superview == nil {
+            containerView.insertSubview(toView, at: 0)
+        } else if toVC.view.superview == nil {
+            containerView.insertSubview(toVC.view, at: 0)
+        }
         
         let imageView = UIImageView(frame: fromVC.dismissAnimateFromRect)
         imageView.contentMode = .scaleAspectFill
@@ -55,5 +64,18 @@ class ZLClipImageDismissAnimatedTransition: NSObject, UIViewControllerAnimatedTr
             imageView.removeFromSuperview()
             transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
         }
+    }
+
+    private static func findEditImageViewController(in viewController: UIViewController?) -> ZLEditImageViewController? {
+        if let editVC = viewController as? ZLEditImageViewController {
+            return editVC
+        }
+
+        for child in viewController?.children ?? [] {
+            if let editVC = findEditImageViewController(in: child) {
+                return editVC
+            }
+        }
+        return nil
     }
 }
